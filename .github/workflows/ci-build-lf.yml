@@ -13,6 +13,7 @@
 # limitations under the License.
 
 name: ci-build-lf
+
 on:
   workflow_dispatch:
   push:
@@ -24,7 +25,7 @@ on:
       - "webui/**"
       - "xtask/**"
       - "build.rs"
-      - ".github/workflows/ci.yml"
+      - ".github/workflows/ci-build-lf.yml"
       - ".github/test/**"
   pull_request:
     branches: ["master"]
@@ -35,7 +36,7 @@ on:
       - "webui/**"
       - "xtask/**"
       - "build.rs"
-      - ".github/workflows/ci.yml"
+      - ".github/workflows/ci-build-lf.yml"
       - ".github/bot/**"
 
 env:
@@ -46,10 +47,16 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # ---------------------------------------------------------
+      # Checkout
+      # ---------------------------------------------------------
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
+      # ---------------------------------------------------------
+      # Setup Android NDK
+      # ---------------------------------------------------------
       - name: Setup Android NDK
         uses: nttld/setup-ndk@v1
         with:
@@ -57,6 +64,9 @@ jobs:
           add-to-path: true
           local-cache: ${{ github.event_name == 'push' }}
 
+      # ---------------------------------------------------------
+      # Setup Rust
+      # ---------------------------------------------------------
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -64,6 +74,9 @@ jobs:
           targets: aarch64-linux-android
           components: rust-src
 
+      # ---------------------------------------------------------
+      # Setup Node + pnpm
+      # ---------------------------------------------------------
       - name: Install pnpm
         uses: pnpm/action-setup@v5.0.0
         with:
@@ -77,37 +90,56 @@ jobs:
         with:
           node-version: "lts/*"
 
+      # ---------------------------------------------------------
+      # Rust cache
+      # ---------------------------------------------------------
       - uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.event_name == 'push' }}
 
+      # ---------------------------------------------------------
+      # Install build deps
+      # ---------------------------------------------------------
       - name: Install build dependencies
         run: |
           sudo apt update
           sudo apt install -y gcc-multilib
           cargo install cargo-ndk --locked
 
+      # ---------------------------------------------------------
+      # Setup WebUI deps
+      # ---------------------------------------------------------
       - name: Setup Webui deps
         run: |
           cd webui/
           pnpm install --frozen-lockfile
 
+      # ---------------------------------------------------------
+      # Build
+      # ---------------------------------------------------------
       - name: Build
         run: cargo xtask build
 
       # ---------------------------------------------------------
-      #   Detect ZIP
+      # Detect ZIP
       # ---------------------------------------------------------
       - name: Detect ZIP
         id: detect
         run: |
-          FILE=$(ls output/*.zip | head -n 1)
+          FILE=$(ls output/*.zip | head -n 1 || true)
+
+          if [ ! -f "$FILE" ]; then
+            echo "ERROR: ZIP file not found in output/"
+            ls -la output/
+            exit 1
+          fi
+
           echo "file=$FILE" >> $GITHUB_OUTPUT
           echo "name=$(basename "$FILE")" >> $GITHUB_OUTPUT
           echo "stem=$(basename "$FILE" .zip)" >> $GITHUB_OUTPUT
 
       # ---------------------------------------------------------
-      #   Upload artifact
+      # Upload artifact
       # ---------------------------------------------------------
       - name: Upload release version
         uses: actions/upload-artifact@v7
@@ -117,55 +149,58 @@ jobs:
           archive: false
 
       # ---------------------------------------------------------
-      #   Create GitHub Release (only on push)
+      # Create GitHub Release
       # ---------------------------------------------------------
       - name: Create Release
         if: github.event_name == 'push'
         uses: softprops/action-gh-release@v2
         with:
+          token: ${{ secrets.GITHUB_TOKEN }}
           tag_name: build-${{ github.run_number }}
           name: Build ${{ github.run_number }}
           body: |
-            Automated build from CI.
+            Automated CI build.
             Commit: ${{ github.sha }}
           files: |
             ${{ steps.detect.outputs.file }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # ---------------------------------------------------------
-      #   Generate simple changelog
+      # Generate simple changelog
       # ---------------------------------------------------------
       - name: Generate changelog
         id: changelog
         run: |
-          git fetch --tags
           git log -n 30 --pretty=format:"• %s" > CHANGELOG.txt
           ESCAPED=$(sed ':a;N;$!ba;s/\n/%0A/g' CHANGELOG.txt)
           echo "escaped=$ESCAPED" >> $GITHUB_OUTPUT
 
       # ---------------------------------------------------------
-      #   Telegram: message
+      # Telegram: message
       # ---------------------------------------------------------
       - name: Send Telegram message
         if: github.event_name == 'push'
         env:
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
           CHANGELOG_ESC: ${{ steps.changelog.outputs.escaped }}
         run: |
           TEXT="🛠 Build #${{ github.run_number }}%0ACommit: <code>${{ github.sha }}</code>%0A%0A<b>Changelog:</b>%0A${CHANGELOG_ESC}"
 
-          curl -s -X POST \
-            "https://api.telegram.org/bot${{ secrets.TG_BOT_TOKEN }}/sendMessage" \
-            -d chat_id="${{ secrets.TG_CHAT_ID }}" \
+          curl -v -X POST \
+            "https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage" \
+            -d chat_id="${TG_CHAT_ID}" \
             -d parse_mode="HTML" \
             -d text="$TEXT"
 
       # ---------------------------------------------------------
-      #   Telegram: ZIP file
+      # Telegram: ZIP file
       # ---------------------------------------------------------
       - name: Send ZIP file
         if: github.event_name == 'push'
+        env:
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: |
-          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TG_BOT_TOKEN }}/sendDocument" \
-            -F chat_id="${{ secrets.TG_CHAT_ID }}" \
+          curl -v -X POST "https://api.telegram.org/bot${TG_BOT_TOKEN}/sendDocument" \
+            -F chat_id="${TG_CHAT_ID}" \
             -F document=@"${{ steps.detect.outputs.file }}"
