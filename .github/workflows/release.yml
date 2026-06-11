@@ -30,7 +30,7 @@ jobs:
           targets: aarch64-linux-android
           components: rust-src
       - name: Install pnpm
-        uses: pnpm/action-setup@v6.0.6
+        uses: pnpm/action-setup@v6.0.8
         with:
           run_install: false
           package_json_file: webui/package.json
@@ -43,8 +43,6 @@ jobs:
           cache-dependency-path: webui/pnpm-lock.yaml
       - name: Install build dependencies
         run: |
-          sudo apt update
-          sudo apt install -y gcc-multilib
           cargo install cargo-ndk --locked
       - name: Setup Webui deps
         run: |
