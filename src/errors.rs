@@ -1,5 +1,5 @@
-// Copyright (C) 2026 Tools-cx-app <localhost.hutao@gmail.com>
-// SPDX-License-Identifier: Apache-2.0
+// Copyright (C) 2026 meta-magic_mount-rs developers
+// SPDX-License-Identifier: GPL-v3
 
 use thiserror::Error as ThisError;
 
@@ -19,8 +19,6 @@ pub enum Error {
     InvalidModuleID { module_id: String },
     #[error("missing required --payload argument")]
     MissingArgment,
-    #[error("hex payload must contain an even number of characters")]
-    PayloadContain,
     #[error(transparent)]
     Io(#[from] std::io::Error),
     #[error(transparent)]
@@ -36,7 +34,5 @@ pub enum Error {
     #[error(transparent)]
     Regex(#[from] regex_lite::Error),
     #[error(transparent)]
-    Library(#[from] libloading::Error),
-    #[error(transparent)]
-    CString(#[from] std::ffi::NulError),
+    Hex(#[from] hex::FromHexError),
 }

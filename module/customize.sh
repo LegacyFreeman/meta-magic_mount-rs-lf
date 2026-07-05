@@ -1,6 +1,9 @@
 #!/system/bin/sh
-# Copyright (C) 2026 Tools-cx-app <localhost.hutao@gmail.com>
-# SPDX-License-Identifier: Apache-2.0
+# Copyright (C) 2026 meta-magic_mount-rs developers
+# SPDX-License-Identifier: GPL-v3
+
+# shellcheck disable=SC2034
+SKIPUNZIP=1
 
 if [ -z "$APATCH" ] && [ -z "$KSU" ]; then
   abort "! unsupported root platform"
@@ -10,36 +13,50 @@ if [ -n "$KSU_LATE_LOAD" ] && [ -n "$KSU" ]; then
   abort "! unsupported late load mode"
 fi
 
-VERSION=$(grep_prop version "${MODPATH}/module.prop")
-ui_print "- mmrs version ${VERSION}"
-
-ui_print "- Detecting device architecture..."
-
-ABI=$(getprop ro.product.cpu.abi)
-
-if [ -z "$ABI" ]; then
-  abort "! Failed to detect device architecture"
-fi
-
-ui_print "- Device platform: $ABI"
-
-case "$ABI" in
-arm64-v8a)
+case "$ARCH" in
+arm64)
   ui_print "- Selected architecture: arm64-v8a"
-  ARCH_BINARY="magic_mount_rs.aarch64"
+  ARCH_BINARY="arm64-v8a"
   ;;
-armeabi-v7a)
+arm)
   ui_print "- Selected architecture: armeabi-v7a"
-  ARCH_BINARY="magic_mount_rs.armv7"
+  ARCH_BINARY="armeabi-v7a"
   ;;
 *)
   abort "! Unsupported platform: $ABI"
   ;;
 esac
 
+VERSION=$(grep_prop version "${TMPDIR}/module.prop")
+ui_print "- mmrs version ${VERSION}"
+
+ui_print "- Extracting verify.sh"
+unzip -o "$ZIPFILE" 'verify.sh' -d "$TMPDIR" >&2
+if [ ! -f "$TMPDIR/verify.sh" ]; then
+  ui_print "*********************************************************"
+  ui_print "! Unable to extract verify.sh!"
+  ui_print "! This zip may be corrupted, please try downloading again"
+  abort    "*********************************************************"
+fi
+# shellcheck disable=SC1091
+. "$TMPDIR/verify.sh"
+
+extract 'module.prop'
+extract 'config.toml'
+extract 'config_apatch.toml'
+extract 'metainstall.sh'
+extract 'metamount.sh'
+extract 'metauninstall.sh'
+extract 'uninstall.sh'
+extract 'launcher.png'
+mkdir -p "$MODPATH/bin/$ARCH_BINARY"
+extract "bin/$ARCH_BINARY/magic_mount_rs" "bin/$ARCH_BINARY" "magic_mount_rs"
+
 # Ensure the binary is executable
-chmod 755 "$MODPATH/bin/$ARCH_BINARY" || abort "! Failed to set permissions"
-ln -s "./bin/$ARCH_BINARY" "$MODPATH/meta-mm" || abort "! Failed to create symlink"
+chmod 755 "$MODPATH/bin/$ARCH_BINARY" -R || abort "! Failed to set permissions"
+ln -s "./bin/$ARCH_BINARY/magic_mount_rs" "$MODPATH/meta-mm" || abort "! Failed to create symlink"
+
+unzip -o "$ZIPFILE" "webroot/*" -x "*.sha256" -d "$MODPATH"
 
 ui_print "- mmrs binary installed"
 

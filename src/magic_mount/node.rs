@@ -1,5 +1,5 @@
-// Copyright (C) 2026 Tools-cx-app <localhost.hutao@gmail.com>
-// SPDX-License-Identifier: Apache-2.0
+// Copyright (C) 2026 meta-magic_mount-rs developers
+// SPDX-License-Identifier: GPL-v3
 
 use std::{
     collections::hash_map::Entry,
@@ -122,10 +122,10 @@ impl Node {
         if lgetxattr(&path, defs::REPLACE_DIR_XATTR)
             .is_ok_and(|s| String::from_utf8_lossy(&s) == "y")
         {
-            return true;
+            true
+        } else {
+            path.as_ref().join(defs::REPLACE_DIR_FILE_NAME).exists()
         }
-
-        path.as_ref().join(defs::REPLACE_DIR_FILE_NAME).exists()
     }
 
     fn dir_is_skip<P>(path: P) -> bool
@@ -134,14 +134,9 @@ impl Node {
     {
         let list = COMMAND_LIST.get().unwrap();
         let path = path.as_ref().to_string_lossy();
-        if list
-            .iter()
-            .any(|s| matches!(s, crate::parser::Command::Ignore { source } if source == &path))
-        {
-            return true;
-        }
-
-        false
+        list.iter()
+            .any(|s| matches!(s, crate::parser::MountType::Ignore { source } if source == &path))
+            || path.ends_with(".replace")
     }
 
     pub fn new_root<S>(name: S) -> Self

@@ -1,5 +1,5 @@
-# Copyright (C) 2026 Tools-cx-app <localhost.hutao@gmail.com>
-# SPDX-License-Identifier: Apache-2.0
+# Copyright (C) 2026 meta-magic_mount-rs developers
+# SPDX-License-Identifier: GPL-v3
 
 name: ci-build
 on:
@@ -32,7 +32,7 @@ jobs:
   ci:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Setup Android NDK
@@ -46,9 +46,9 @@ jobs:
         with:
           toolchain: nightly
           targets: aarch64-linux-android
-          components: rust-src
+          components: rust-src, rustc-codegen-cranelift-preview
       - name: Install pnpm
-        uses: pnpm/action-setup@v6.0.8
+        uses: pnpm/action-setup@v6.0.9
         with:
           cache: ${{ github.event_name == 'push' }}
           cache_dependency_path: webui/pnpm-lock.yaml
@@ -70,28 +70,28 @@ jobs:
           pnpm install --frozen-lockfile
       - name: Build
         run: |
-          cargo xtask build
+          cargo xtask build -t arm64
+          cargo xtask build -t armv7
       - name: Upload release version
         uses: actions/upload-artifact@v7
         with:
           name: meta-mm-${{ github.run_number }}
           path: output/*.zip
-          archive: false
       - name: Upload
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
-          BOT_CI_SESSION: ${{ secrets.BOT_CI_SESSION }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PERSIST_TOKEN: ${{ secrets.PERSIST_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_SHA: ${{ github.sha }}
           RUN_NO: ${{ github.run_number }}
           RUN_ID: ${{ github.run_id }}
         run: |
-          if [ -z "${BOT_TOKEN:-}" ] || [ -z "${CHAT_ID:-}" ] || [ -z "${BOT_CI_SESSION:-}" ]; then
+          if [ -z "${BOT_TOKEN:-}" ] || [ -z "${CHAT_ID:-}" ]; then
             exit 0
           fi
-          pip3 install -r .github/bot/requirements.txt
-          python3 .github/bot/bot.py
+          cd .github/bot
+          pip3 install -e .
+          cd ../..
+          python3 -m bot

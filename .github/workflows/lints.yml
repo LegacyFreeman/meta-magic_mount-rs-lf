@@ -1,5 +1,5 @@
-# Copyright (C) 2026 Tools-cx-app <localhost.hutao@gmail.com>
-# SPDX-License-Identifier: Apache-2.0
+# Copyright (C) 2026 meta-magic_mount-rs developers
+# SPDX-License-Identifier: GPL-v3
 
 name: lints-check
 on:
@@ -19,13 +19,15 @@ on:
       - 'Cargo.*'
       - 'build.rs'
       - 'module/**'
+permissions:
+  contents: read
 env:
   CARGO_TERM_COLOR: always
 jobs:
   clippy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Setup Android NDK
         uses: nttld/setup-ndk@v1
         with:
@@ -37,7 +39,7 @@ jobs:
         with:
           toolchain: nightly
           targets: aarch64-linux-android, armv7-linux-androideabi
-          components: rustfmt, clippy
+          components: clippy, rustc-codegen-cranelift-preview
       - name: Install build dependencies
         run: cargo install cargo-ndk --locked
       - name: Clippy code
@@ -45,13 +47,13 @@ jobs:
   format:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: nightly
           targets: aarch64-linux-android
-          components: rustfmt, clippy
+          components: rustfmt
       - name: Check style
         run: cargo fmt --message-format=json --all
   webui-check:
@@ -62,7 +64,7 @@ jobs:
   shellcheck:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Run ShellCheck
         uses: ludeeus/action-shellcheck@2.0.0
         env:

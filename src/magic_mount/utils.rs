@@ -1,5 +1,5 @@
-// Copyright (C) 2026 Tools-cx-app <localhost.hutao@gmail.com>
-// SPDX-License-Identifier: Apache-2.0
+// Copyright (C) 2026 meta-magic_mount-rs developers
+// SPDX-License-Identifier: GPL-v3
 
 use std::{
     fs::{self, DirEntry, Metadata, create_dir, create_dir_all, read_link},

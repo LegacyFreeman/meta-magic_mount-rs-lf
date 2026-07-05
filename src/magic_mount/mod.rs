@@ -1,8 +1,8 @@
-// Copyright (C) 2026 Tools-cx-app <localhost.hutao@gmail.com>
-// SPDX-License-Identifier: Apache-2.0
+// Copyright (C) 2026 meta-magic_mount-rs developers
+// SPDX-License-Identifier: GPL-v3
 
 pub mod node;
-mod utils;
+pub mod utils;
 
 use std::{
     fs,
@@ -324,10 +324,7 @@ where
     }
     let mounted_symbols = MOUNTDED_SYMBOLS_FILES.load(std::sync::atomic::Ordering::Relaxed);
     let mounted_files = MOUNTDED_FILES.load(std::sync::atomic::Ordering::Relaxed);
-    let ignored_files = IGNORED_FILES.load(std::sync::atomic::Ordering::Relaxed);
-    log::info!(
-        "mounted files: {mounted_files}, mounted symlinks: {mounted_symbols}, ignored files: {ignored_files}"
-    );
-    crate::utils::update_desc(mounted_files, mounted_symbols, ignored_files)?;
+    log::info!("mounted files: {mounted_files}, mounted symlinks: {mounted_symbols}");
+    crate::utils::update_desc(mounted_files, mounted_symbols)?;
     Ok(())
 }

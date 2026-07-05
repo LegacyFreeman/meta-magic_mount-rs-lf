@@ -1,10 +1,11 @@
-// Copyright (C) 2026 Tools-cx-app <localhost.hutao@gmail.com>
-// SPDX-License-Identifier: Apache-2.0
+// Copyright (C) 2026 meta-magic_mount-rs developers
+// SPDX-License-Identifier: GPL-v3
 
 pub mod ksucalls;
 
 use std::{
-    fs::create_dir_all,
+    fs::{self, create_dir_all},
+    io::Write,
     path::{Path, PathBuf},
     process::Command,
 };
@@ -84,9 +85,34 @@ where
     }
 }
 
-pub fn update_desc(file: u32, symbol: u32, ignore: u32) -> Result<()> {
+fn legacy_update_desc<S: ToString>(desc: &S) -> Result<()> {
+    let prop = fs::read_to_string(defs::MODULE_PROP)?;
+    let mut temp = tempfile::Builder::new().tempfile()?;
+
+    let new: Vec<String> = prop
+        .lines()
+        .map(|l| {
+            if l.starts_with("description") {
+                format!("description={}", desc.to_string())
+            } else {
+                l.to_string()
+            }
+        })
+        .collect();
+
+    let _ = temp
+        .write_all(new.join("\n").as_bytes())
+        .map_err(|e| log::error!("Failed to update description: {e}"));
+
+    fs::rename(temp.path(), defs::MODULE_PROP)?;
+
+    Ok(())
+}
+
+pub fn update_desc(files: u32, symbols: u32) -> Result<()> {
     let text = format!(
-        "[😋 MF {file},MS {symbol},IG {ignore}] An implementation of a metamodule using Magic Mount."
+        "[😋 mount files/symbol {}] An implementation of a metamodule using Magic Mount.",
+        files + symbols
     );
 
     let cmd = if KSU.load(std::sync::atomic::Ordering::Relaxed) {
@@ -114,10 +140,74 @@ pub fn update_desc(file: u32, symbol: u32, ignore: u32) -> Result<()> {
         log::debug!("module config override.description successful set!");
     } else {
         log::warn!(
-            "failed to set module config override.description: {}",
+            "failed to set module config override.description: {}, fallback to write regular file",
             String::from_utf8_lossy(&output.stderr)
         );
+        legacy_update_desc(&text)?;
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use super::*;
+
+    #[test]
+    fn test_validate_module_id_valid() {
+        assert!(validate_module_id("testModule").is_ok());
+        assert!(validate_module_id("a.b-c_d").is_ok());
+    }
+
+    #[test]
+    fn test_validate_module_id_invalid() {
+        assert!(validate_module_id("123test").is_err());
+        assert!(validate_module_id(".test").is_err());
+        assert!(validate_module_id("test@test").is_err());
+        assert!(validate_module_id("").is_err());
+    }
+
+    #[test]
+    fn test_generate_tmp() {
+        let path = generate_tmp();
+        let file_name = path.file_name().unwrap().to_str().unwrap();
+        let path2 = generate_tmp();
+
+        assert_eq!(path.parent(), Some(Path::new("/mnt")));
+
+        assert_eq!(file_name.len(), 10);
+
+        assert!(file_name.chars().all(|c| c.is_ascii_alphanumeric()));
+
+        assert_ne!(path, path2);
+    }
+
+    #[test]
+    fn test_ensure_dir_exists_success() {
+        let tmp_dir = tempfile::tempdir().unwrap();
+        let target_dir = tmp_dir.path().join("test");
+
+        assert!(ensure_dir_exists(&target_dir).is_ok());
+        assert!(target_dir.is_dir());
+    }
+
+    #[test]
+    fn test_ensure_dir_exists_failure_when_file_exists() {
+        let tmp_dir = tempfile::tempdir().unwrap();
+        let file_path = tmp_dir.path().join("test");
+
+        fs::write(&file_path, "test").unwrap();
+
+        let result = ensure_dir_exists(&file_path);
+        assert!(result.is_err());
+
+        match result {
+            Err(Error::RegularDirectory { path }) => {
+                assert_eq!(path, file_path.display().to_string());
+            }
+            _ => panic!("Expected Error::RegularDirectory"),
+        }
+    }
 }
